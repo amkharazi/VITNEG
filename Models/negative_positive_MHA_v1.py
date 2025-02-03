@@ -21,9 +21,9 @@ class PatchEmbedding(nn.Module):
         return x
 
 # Multi-Head Attention Layer
-class MultiHeadAttention(nn.Module):
+class NegativePositiveMultiHeadAttention(nn.Module):
     def __init__(self, dim, num_heads):
-        super(MultiHeadAttention, self).__init__()
+        super(NegativePositiveMultiHeadAttention, self).__init__()
         self.num_heads = num_heads
         self.head_dim = dim // num_heads
         self.scale = self.head_dim ** -0.5
@@ -39,7 +39,13 @@ class MultiHeadAttention(nn.Module):
 
         attn = torch.einsum("bhqd, bhkd -> bhqk", q, k) * self.scale  # Shape: (B, h, N, N)
         # print(f'hereX1 {attn.shape}')
-        attn = attn.softmax(dim=-1)
+        
+        sign_attn = torch.sign(attn)
+        abs_attn = torch.abs(attn)
+        abs_attn = abs_attn.softmax(dim=-1)
+
+        attn = sign_attn * abs_attn
+
         # print(f'hereX2 {attn[0][2].sum(dim = -1).shape}')
         # print(f'hereX3 {attn[0][2].sum(dim = -1)}')
 
@@ -69,7 +75,7 @@ class TransformerBlock(nn.Module):
         super(TransformerBlock, self).__init__()
         self.norm1 = nn.LayerNorm(dim)
         self.norm2 = nn.LayerNorm(dim)
-        self.attn = MultiHeadAttention(dim, num_heads)
+        self.attn = NegativePositiveMultiHeadAttention(dim, num_heads)
         self.mlp = MLP(dim, mlp_dim, dropout)
 
     def forward(self, x):

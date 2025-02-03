@@ -4,11 +4,12 @@ sys.path.append('..')
 
 # Import Libraries
 
-from Models.glvit_v2 import VisionTransformer
+from Models.negative_positive_MHA_v1 import VisionTransformer
 from Utils.cifar10_loaders import get_cifar10_dataloaders
 from Utils.cifar100_loaders import get_cifar100_dataloaders
 from Utils.mnist_loaders import get_mnist_dataloaders
 from Utils.tinyimagenet_loaders import get_tinyimagenet_dataloaders
+
 
 from Utils.accuracy_measures import topk_accuracy
 from Utils.num_parameters import count_parameters
@@ -20,6 +21,7 @@ import torch
 import os
 
 import argparse
+
 import numpy as np
 import random
 
@@ -31,6 +33,7 @@ def set_seed(seed: int = 42):
     torch.cuda.manual_seed_all(seed)  
     torch.backends.cudnn.deterministic = True 
     torch.backends.cudnn.benchmark = False
+    
 
 def main(dataset = 'cifar10', 
         TEST_ID = 'Test_ID001',
@@ -45,6 +48,7 @@ def main(dataset = 'cifar10',
          heads = 8,
          mlp_dim = 128,
          SEED = None):
+    
     
     # Setup the device
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -66,7 +70,7 @@ def main(dataset = 'cifar10',
                                          heads=heads,
                                            mlp_dim=mlp_dim,
                                              dropout=0.1).to(device)
-
+    
     if dataset=='cifar10':
         cifar10_transform_train = transforms.Compose([
                 transforms.RandomHorizontalFlip(),
@@ -81,7 +85,7 @@ def main(dataset = 'cifar10',
                 transforms.ToTensor(),
                 transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
             ])
-        _ , test_loader = get_cifar10_dataloaders(data_dir = '../datasets',
+        train_loader, _ = get_cifar10_dataloaders(data_dir = '../datasets',
                                                     transform_train=cifar10_transform_train,
                                                     transform_test=cifar10_transform_test,
                                                     batch_size=batch_size,
@@ -101,7 +105,7 @@ def main(dataset = 'cifar10',
                 transforms.ToTensor(),
                 transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
             ])
-        _, test_loader = get_cifar100_dataloaders(data_dir = '../datasets',
+        train_loader, _ = get_cifar100_dataloaders(data_dir = '../datasets',
                                                     transform_train=cifar100_transform_train,
                                                     transform_test=cifar100_transform_test,
                                                     batch_size=batch_size,
@@ -122,7 +126,7 @@ def main(dataset = 'cifar10',
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         ])
-        _ , test_loader = get_mnist_dataloaders(data_dir = '../datasets',
+        train_loader, _ = get_mnist_dataloaders(data_dir = '../datasets',
                                                     transform_train=mnist_transform_train,
                                                     transform_test=mnist_transform_test,
                                                     batch_size=batch_size,
@@ -149,41 +153,53 @@ def main(dataset = 'cifar10',
             ])
 
         
-        _, test_loader,_ = get_tinyimagenet_dataloaders(data_dir = '../datasets',
+        train_loader, _,_ = get_tinyimagenet_dataloaders(data_dir = '../datasets',
                                                         transform_train=tiny_transform_train,
                                                         transform_val=tiny_transform_val,
                                                         transform_test=tiny_transform_test,
                                                         batch_size=batch_size,
                                                         image_size=image_size)
     
-    criterion = nn.CrossEntropyLoss()    
-
-    def test_epoch(loader, epoch):
-        model.eval()
+    num_parameters = count_parameters(model)
+    print(f'This Model has {num_parameters} parameters')
+    
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters())
+    
+    
+    # Define train and test functions (use examples)
+    def train_epoch(loader, epoch):
+        model.train()
     
         start_time = time.time()
         running_loss = 0.0
         correct = {1:0.0, 2:0.0, 3:0.0, 4:0.0, 5:0.0} # set the initial correct count for top1-to-top5 accuracy
 
-        for _, (inputs, targets) in enumerate(loader):
+        for i, (inputs, targets) in enumerate(loader):
             inputs, targets = inputs.to(device), targets.to(device)
-            
+        
+            optimizer.zero_grad()
             outputs = model(inputs)
             loss = criterion(outputs, targets)
+        
+            loss.backward()
+            optimizer.step()
 
             running_loss += loss.item()
             accuracies = topk_accuracy(outputs, targets, topk=(1, 2, 3, 4, 5))
             for k in accuracies:
                 correct[k] += accuracies[k]['correct']
+            # print(f'batch{i} done!')
 
         elapsed_time = time.time() - start_time
         top1_acc, top2_acc, top3_acc, top4_acc, top5_acc = [(correct[k]/len(loader.dataset)) for k in correct]
         avg_loss = running_loss / len(loader.dataset)
     
-        report_test = f'Test epoch {epoch}: top1%={top1_acc}, top2%={top2_acc}, top3%={top3_acc}, top4%={top4_acc}, top5%={top5_acc}, loss={avg_loss}, time={elapsed_time}s'
-        print(report_test)
+        report_train = f'Train epoch {epoch}: top1%={top1_acc}, top2%={top2_acc}, top3%={top3_acc}, top4%={top4_acc}, top5%={top5_acc}, loss={avg_loss}, time={elapsed_time}s'
+        print(report_train)
 
-        return report_test
+        return report_train
+
     
     # Set up the directories to save the results
     result_dir = os.path.join('../results', TEST_ID)
@@ -193,23 +209,24 @@ def main(dataset = 'cifar10',
     os.makedirs(result_subdir, exist_ok=True)
     os.makedirs(model_subdir, exist_ok=True)
     
+    with open(os.path.join(result_dir, 'model_stats', 'model_info.txt'), 'a') as f:
+        f.write(f'total number of parameters:\n{num_parameters}\n dataset is {dataset}\n seed is ${SEED}')
 
-    # Testing
+    # Train from Scratch - Just Train
+    print(f'Training for {len(range(n_epoch))} epochs\n')
     for epoch in range(0+1,n_epoch+1):
-        if epoch%5 == 0:
-            weights_path = os.path.join('../results',TEST_ID, 'model_stats', f'Model_epoch_{epoch}.pth')
-            print(model.load_state_dict(torch.load(weights_path)))
-            model = model.to(device)
-            report_test = test_epoch(test_loader, epoch)
-            report = report_test + '\n'
-            with open(os.path.join(result_dir, 'accuracy_stats', 'report_val.txt'), 'a') as f:
-                f.write(report)  
-        
-        
+        report_train = train_epoch(train_loader, epoch)
+    
+        report = report_train + '\n'
+        if epoch % 5 == 0:
+            model_path = os.path.join(result_dir, 'model_stats', f'Model_epoch_{epoch}.pth')
+            torch.save(model.state_dict(), model_path)
+        with open(os.path.join(result_dir, 'accuracy_stats', 'report_train.txt'), 'a') as f:
+            f.write(report)     
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser(description="Basic Experiment Settings - Test")
+    parser = argparse.ArgumentParser(description="Basic Experiment Settings - Train")
     
     # Add arguments to the parser
     parser.add_argument('--TEST_ID', type=str, help='Experiment test ID')
@@ -234,6 +251,6 @@ if __name__ == '__main__':
          args.patch_size, args.num_classes, args.dim, args.depth, args.heads, args.mlp_dim,args.seed)
 
 
-           
+    
 
 

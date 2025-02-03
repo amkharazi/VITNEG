@@ -4,7 +4,7 @@ sys.path.append('..')
 
 # Import Libraries
 
-from Models.glvit_v3 import VisionTransformer
+from Models.negative_positive_MHA_v1 import VisionTransformer
 from Utils.cifar10_loaders import get_cifar10_dataloaders
 from Utils.cifar100_loaders import get_cifar100_dataloaders
 from Utils.mnist_loaders import get_mnist_dataloaders
@@ -32,6 +32,7 @@ def set_seed(seed: int = 42):
     torch.cuda.manual_seed_all(seed)  
     torch.backends.cudnn.deterministic = True 
     torch.backends.cudnn.benchmark = False
+    
 
 def main(dataset = 'cifar10', 
         TEST_ID = 'Test_ID001',
@@ -52,11 +53,12 @@ def main(dataset = 'cifar10',
     # device = 'cpu'
     print(f'Device is set to : {device}')
 
+
     if SEED is None:
         print(f'No seed is set!')
     else:
         set_seed(seed=SEED)
-        
+
     # Set up the vit model
     model = VisionTransformer(img_size=image_size,
                                patch_size=patch_size,
@@ -233,6 +235,7 @@ if __name__ == '__main__':
     # Call the main function with the parsed arguments
     main(args.dataset, args.TEST_ID, args.batch_size, args.n_epoch, args.image_size, args.train_size,
          args.patch_size, args.num_classes, args.dim, args.depth, args.heads, args.mlp_dim,args.seed)
+
 
 
            
