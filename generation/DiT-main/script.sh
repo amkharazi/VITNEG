@@ -1,0 +1,1 @@
+python train_small.py --dataset stl10 --image-size 96 --latent false --softmax-type neg --model DiT-B/4 --outdir /content/dit_runs

@@ -2,7 +2,7 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader, random_split, ConcatDataset
 from torchvision import datasets
 
-def get_fashionmnist_dataloaders(data_dir='../datasets', transform_train=None, transform_test=None, batch_size=64, image_size=192, train_size='default'):
+def get_fashionmnist_dataloaders(data_dir='../datasets', transform_train=None, transform_test=None, batch_size=64, image_size=192, train_size='default', repeat_count=3):
     if transform_train is None:
         transform_train = transforms.Compose([
             transforms.Resize((image_size, image_size)),
@@ -29,7 +29,12 @@ def get_fashionmnist_dataloaders(data_dir='../datasets', transform_train=None, t
         train_dataset, dataset_temp_test = random_split(train_dataset, [int(train_size), temp_test_size])
         test_dataset = ConcatDataset([dataset_temp_test, test_dataset])
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    repeated_train_dataset = ConcatDataset([train_dataset] * repeat_count)
+
+    train_loader = DataLoader(repeated_train_dataset, batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     return train_loader, test_loader
+
+# Example usage:
+# train_loader, test_loader = get_fashionmnist_dataloaders(data_dir='./dataset', image_size=192)

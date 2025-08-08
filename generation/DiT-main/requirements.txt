@@ -1,0 +1,6 @@
+torch>=1.13
+torchvision
+pytorch-cuda==11.7
+timm
+diffusers
+accelerate
