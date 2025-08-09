@@ -1,3 +1,6 @@
+import sys
+sys.path.append('..')
+
 import os, math, argparse, random
 import numpy as np
 import torch
