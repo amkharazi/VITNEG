@@ -4,6 +4,8 @@ sys.path.append('.')
 import os, argparse, torch
 import torch.nn as nn
 import torchvision.transforms as transforms
+from torchvision.transforms import RandAugment, RandomErasing
+
 
 # models
 from models.vit import vit
