@@ -21,6 +21,7 @@ from utils.tinyimagenet_loaders import get_tinyimagenet_dataloaders
 from utils.fashionmnist_loaders import get_fashionmnist_dataloaders
 from utils.flowers102_loaders import get_flowers102_dataloaders
 from utils.oxford_pets_loaders import get_oxford_pets_dataloaders
+from utils.food101_loaders import get_food101_dataloaders
 from utils.stl10_classification_loaders import get_stl10_classification_dataloaders
 
 def topk_accuracy(logits, targets, topk=(1,)):
@@ -241,7 +242,22 @@ def get_test_loader(args):
             transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
         ])
         _, test_loader = get_stl10_classification_dataloaders(args.data_root, transform_train, transform_test, batch_size, image_size, train_size, repeat_count)
-
+    elif ds == 'food101':
+        transform_train = transforms.Compose([
+            RandAugment(),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomResizedCrop(image_size, scale=(0.8, 1.0)),
+            transforms.RandomRotation(10),
+            transforms.ToTensor(),
+            transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+            RandomErasing(p=0.25)
+        ])
+        transform_test = transforms.Compose([
+            transforms.Resize((image_size, image_size)),
+            transforms.ToTensor(),
+            transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
+        ])
+        _, test_loader = get_food101_dataloaders(args.data_root, transform_train, transform_test, batch_size, image_size, train_size, repeat_count=5)
     else:
         raise ValueError("unknown dataset")
 
@@ -250,7 +266,7 @@ def get_test_loader(args):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dataset", type=str, default="cifar10",
-                    choices=["cifar10","cifar100","mnist","tinyimagenet","fashionmnist","flowers102","oxford_pets","stl10"])
+                    choices=["cifar10","cifar100","mnist","tinyimagenet","fashionmnist","flowers102","oxford_pets","stl10", "food101"])
     ap.add_argument("--data-root", type=str, default="./datasets")
     ap.add_argument("--image-size", type=int, default=32)
     ap.add_argument("--batch-size", type=int, default=256)
